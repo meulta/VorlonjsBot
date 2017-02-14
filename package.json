@@ -18,6 +18,12 @@
   "homepage": "https://github.com/meulta/VorlonjsBot#readme",
   "dependencies": {
     "botbuilder": "^3.6.0",
-    "restify": "^4.3.0"
+    "restify": "^4.3.0",
+    "dotenv": "^2.0.0",
+    "passport": "^0.3.2",
+    "passport-azure-ad": "^3.0.0",
+    "request": "^2.76.0",
+    "envx": "^1.0.0",
+    "express-session": "^1.14.2"
   }
 }
