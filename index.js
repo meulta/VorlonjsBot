@@ -136,8 +136,8 @@ server.get('/login', function (req, res, next) {
 server.get('/api/OAuthCallback/',
   passport.authenticate('azuread-openidconnect', { failureRedirect: '/login' }),
   (req, res) => {
-    // console.log('OAuthCallback');
-    // console.log(req);
+    console.log('OAuthCallback');
+    console.log(req);
     const address = JSON.parse(req.query.state);
     const magicCode = crypto.randomBytes(4).toString('hex');
     const messageData = { magicCode: magicCode, accessToken: req.user.accessToken, refreshToken: req.user.refreshToken, userId: address.user.id, name: req.user.displayName, email: req.user.upn };
