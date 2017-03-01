@@ -113,7 +113,7 @@ var handleConversation = function(session, results, next){
 
 var addVorlonjsServer= function(instanceName, done){
 
-  rootUrl = 'http://vorlonjsaas.westus2.cloudapp.azure.com';
+  var rootUrl = 'http://vorlonjsaas.westus2.cloudapp.azure.com';
 
   var options = {
       method: 'POST',
