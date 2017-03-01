@@ -80,7 +80,10 @@ var handleConversation = function(session, results, next){
     
     switch(resp.toLowerCase()){
         case "create":
-            session.send("Here is your Vorlon.js instance: ...");
+            session.send("I am creating your Vorlon.js instance...");
+            addVorlonjsServer("etmargra", (err, url) =>{
+              session.send("You can access it using ")
+            })
             break;
         case "delete":
             session.send("I deleted your Vorlon.js instance: ...");
@@ -102,6 +105,33 @@ var handleConversation = function(session, results, next){
             session.send("Welcome " + session.userData.loginData.email + "! You are currently logged in. Say 'create' to create a vorlon.js instance, 'reset' to reset your existing instance, 'delete' to delete your instance, 'current' to get your instance URL, 'logout' to disconnect!");
             break;
     }
+}
+
+//=========================================================
+// Vorlon.js as a Service API
+//=========================================================
+
+var addVorlonjsServer= function(instanceName, done){
+
+  rootUrl = 'http://vorlonjsaas.westus2.cloudapp.azure.com';
+
+  var options = {
+      method: 'POST',
+      url: rootUrl + '/api/instance/create',
+      data: {
+          "serviceName": instanceName
+      },
+      json: true,
+      headers: { 'Content-Type' : 'application/json' }
+  };
+
+  request(options, function (err, res, body) {
+      if (err) return done(err, null);
+      if (parseInt(res.statusCode / 100, 10) !== 2) {
+          return done(null, rootUrl + "/" + instanceName);
+      }
+      done(null, null);
+  }); 
 }
 
 //=========================================================
