@@ -81,12 +81,18 @@ var handleConversation = function(session, results, next){
     switch(resp.toLowerCase()){
         case "create":
             session.send("I am creating your Vorlon.js instance...");
-            addVorlonjsServer("etmargra", (err, url) =>{
-              session.send("You can access it using ")
+            vaaSApiCall("create", session.userData.loginData.alias, (err, url) =>{
+              if(url != null)
+                session.send("Done! You can access it using: " + url);
+              else
+                session.send("I did not manage to create your Vorlon.js instance. Try again or contact vorlonjs@microsoft.com");
             })
             break;
         case "delete":
-            session.send("I deleted your Vorlon.js instance: ...");
+            session.send("Deleting your instance...");
+            vaaSApiCall("remove", session.userData.loginData.alias, (err, url) =>{
+              session.send("Done! Feel free to create a new one by saying 'create'");
+            })
             break;
         case "reset":
             session.send("Here is your NEW Vorlon.js instance: ...");
@@ -102,7 +108,8 @@ var handleConversation = function(session, results, next){
             session.endConversation("You have logged out. Goodbye.");
             break;
         default:
-            session.send("Welcome " + session.userData.loginData.email + "! You are currently logged in. Say 'create' to create a vorlon.js instance, 'reset' to reset your existing instance, 'delete' to delete your instance, 'current' to get your instance URL, 'logout' to disconnect!");
+           // session.send("Welcome " + session.userData.loginData.email + "! You are currently logged in. Say 'create' to create a vorlon.js instance, 'reset' to reset your existing instance, 'delete' to delete your instance, 'current' to get your instance URL, 'logout' to disconnect!");
+            session.send("Welcome " + session.userData.loginData.email + "! You are currently logged in. Say 'create' to create a vorlon.js instance, 'delete' to delete your instance, 'logout' to disconnect!");
             break;
     }
 }
@@ -111,14 +118,14 @@ var handleConversation = function(session, results, next){
 // Vorlon.js as a Service API
 //=========================================================
 
-var addVorlonjsServer= function(instanceName, done){
+var vaaSApiCall = function(command, instanceName, done){
 
   var rootUrl = 'http://vorlonjsaas.westus2.cloudapp.azure.com';
 
   var options = {
       method: 'POST',
-      url: rootUrl + '/api/instance/create',
-      data: {
+      url: rootUrl + '/api/instance/' + command,
+      body: {
           "serviceName": instanceName
       },
       json: true,
@@ -171,20 +178,32 @@ server.get('/api/OAuthCallback/',
     const address = JSON.parse(req.query.state);
     const magicCode = crypto.randomBytes(4).toString('hex');
     const messageData = { magicCode: magicCode, accessToken: req.user.accessToken, refreshToken: req.user.refreshToken, userId: address.user.id, name: req.user.displayName, email: req.user.upn };
-    
-    var continueMsg = new builder.Message().address(address).text(JSON.stringify(messageData));
-    console.log(continueMsg.toMessage());
-    bot.receive(continueMsg.toMessage());
+    var mailParts = messageData.email.split('@');
 
-    var authCodePage =  '<p style="font-family: Verdana; font-size: 0.9em; text-align: center; margin-top: 40vh">' + 
-                            'Welcome <strong>' + req.user.displayName + '! </strong> <br /><br /> Please copy this number and paste it back to your chat so your authentication can complete: <br /><br /><strong>' + 
-                          magicCode +
-                        '</strong></p>';
+    var authCodePage = '<p style="font-family: Verdana; font-size: 0.9em; text-align: center; margin-top: 40vh">You have to login with you @microsoft.com account.</p>';
+
+    if(mailParts.length === 2 && mailParts[1] === "microsoft.com"){
+      messageData.alias = mailParts[0];
+
+      var continueMsg = new builder.Message().address(address).text(JSON.stringify(messageData));
+      console.log(continueMsg.toMessage());
+      bot.receive(continueMsg.toMessage());
+
+      authCodePage =  '<p style="font-family: Verdana; font-size: 0.9em; text-align: center; margin-top: 40vh">' + 
+                              'Welcome <strong>' + req.user.displayName + '! </strong> <br /><br /> Please copy this number and paste it back to your chat so your authentication can complete: <br /><br /><strong>' + 
+                            magicCode +
+                          '</strong></p>';
+    }
+    else{
+      var continueMsg = new builder.Message().address(address).text("cancel");
+      bot.receive(continueMsg.toMessage());
+    }
 
     res.writeHead(200, {
         'Content-Length': Buffer.byteLength(authCodePage),
         'Content-Type': 'text/html'
     });
+
     res.write(authCodePage);
 });
 
