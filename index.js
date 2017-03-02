@@ -22,6 +22,9 @@ const AZUREAD_APP_PASSWORD = envx("AZUREAD_APP_PASSWORD");
 const AZUREAD_APP_REALM = envx("AZUREAD_APP_REALM");
 const AUTHBOT_CALLBACKHOST = envx("AUTHBOT_CALLBACKHOST");
 
+//VaaS variables
+const VAAS_ROOT_URL = envx("VAAS_ROOT_URL");
+
 //=========================================================
 // Bot Setup
 //=========================================================
@@ -79,38 +82,34 @@ var handleConversation = function(session, results, next){
     var resp = session.message.text;
     
     switch(resp.toLowerCase()){
-        case "create":
-            session.send("I am creating your Vorlon.js instance...");
-            vaaSApiCall("create", session.userData.loginData.alias, (err, url) =>{
-              if(url != null)
-                session.send("Done! You can access it using: " + url);
-              else
-                session.send("I did not manage to create your Vorlon.js instance. Try again or contact vorlonjs@microsoft.com");
-            })
-            break;
-        case "delete":
-            session.send("Deleting your instance...");
-            vaaSApiCall("remove", session.userData.loginData.alias, (err, url) =>{
-              session.send("Done! Feel free to create a new one by saying 'create'");
-            })
-            break;
-        case "reset":
-            session.send("Here is your NEW Vorlon.js instance: ...");
-            break;
-        case "current":
-            session.send("Here is your current Vorlon.js instance: ...");
-            break;
-        case "logout":
-            session.userData.loginData = null;
-            session.userData.userName = null;
-            session.userData.accessToken = null;
-            session.userData.refreshToken = null;
-            session.endConversation("You have logged out. Goodbye.");
-            break;
-        default:
-           // session.send("Welcome " + session.userData.loginData.email + "! You are currently logged in. Say 'create' to create a vorlon.js instance, 'reset' to reset your existing instance, 'delete' to delete your instance, 'current' to get your instance URL, 'logout' to disconnect!");
-            session.send("Welcome " + session.userData.loginData.email + "! You are currently logged in. Say 'create' to create a vorlon.js instance, 'delete' to delete your instance, 'logout' to disconnect!");
-            break;
+        case "create": {
+          session.send("I am creating your Vorlon.js instance...");
+          vaaSApiCall("create", session.userData.loginData.alias, (err, url) =>{
+            if(url != null)
+              session.send("Done! You can access it using: " + url);
+            else
+              session.send("I did not manage to create your Vorlon.js instance. Try again or contact vorlonjs@microsoft.com");
+          });
+          break;
+        }
+        case "delete": {
+          session.send("Deleting your instance...");
+          vaaSApiCall("remove", session.userData.loginData.alias, (err, url) =>{
+            session.send("Done! Feel free to create a new one by saying 'create'");
+          });
+          break;
+        }
+        case "logout": {
+          session.userData.loginData = null;
+          session.userData.userName = null;
+          session.userData.accessToken = null;
+          session.userData.refreshToken = null;
+          session.endConversation("You have logged out. Goodbye.");
+          break;
+        }
+        default: {
+          session.send("Welcome " + session.userData.loginData.email + "! You are currently logged in. Say 'create' to create a vorlon.js instance, 'delete' to delete your instance, 'logout' to disconnect!");
+        }
     }
 }
 
@@ -120,7 +119,7 @@ var handleConversation = function(session, results, next){
 
 var vaaSApiCall = function(command, instanceName, done){
 
-  var rootUrl = 'http://vorlonjsaas.westus2.cloudapp.azure.com';
+  var rootUrl = VAAS_ROOT_URL;
 
   var options = {
       method: 'POST',
@@ -152,9 +151,7 @@ server.use(passport.initialize());
 
 server.get('/login', function (req, res, next) {
   passport.authenticate('azuread-openidconnect', { failureRedirect: '/login', customState: req.query.address, resourceURL: process.env.MICROSOFT_RESOURCE }, function (err, user, info) {
-    console.log('login');
     if (err) {
-      console.log(err);
       return next(err);
     }
     if (!user) {
@@ -173,30 +170,27 @@ server.get('/login', function (req, res, next) {
 server.get('/api/OAuthCallback/',
   passport.authenticate('azuread-openidconnect', { failureRedirect: '/login' }),
   (req, res) => {
-    console.log('OAuthCallback');
-    console.log(req);
     const address = JSON.parse(req.query.state);
     const magicCode = crypto.randomBytes(4).toString('hex');
     const messageData = { magicCode: magicCode, accessToken: req.user.accessToken, refreshToken: req.user.refreshToken, userId: address.user.id, name: req.user.displayName, email: req.user.upn };
-    var mailParts = messageData.email.split('@');
+    var authCodePage = '<p style="font-family: Verdana; font-size: 0.9em; text-align: center; margin-top: 40vh">You have to login with your @microsoft.com account.<br/><br/>Go here to logout and login again: <a href="http://account.microsoft.com">account.microsoft.com</a> </p>';
+                       
+    
+    if(messageData.email){
+      var mailParts = messageData.email.split('@');
+      
+      if(mailParts.length === 2 && mailParts[1] === "microsoft.com"){
 
-    var authCodePage = '<p style="font-family: Verdana; font-size: 0.9em; text-align: center; margin-top: 40vh">You have to login with you @microsoft.com account.</p>';
+        messageData.alias = mailParts[0];
 
-    if(mailParts.length === 2 && mailParts[1] === "microsoft.com"){
-      messageData.alias = mailParts[0];
+        var continueMsg = new builder.Message().address(address).text(JSON.stringify(messageData));
+        bot.receive(continueMsg.toMessage());
 
-      var continueMsg = new builder.Message().address(address).text(JSON.stringify(messageData));
-      console.log(continueMsg.toMessage());
-      bot.receive(continueMsg.toMessage());
-
-      authCodePage =  '<p style="font-family: Verdana; font-size: 0.9em; text-align: center; margin-top: 40vh">' + 
-                              'Welcome <strong>' + req.user.displayName + '! </strong> <br /><br /> Please copy this number and paste it back to your chat so your authentication can complete: <br /><br /><strong>' + 
-                            magicCode +
-                          '</strong></p>';
-    }
-    else{
-      var continueMsg = new builder.Message().address(address).text("cancel");
-      bot.receive(continueMsg.toMessage());
+        authCodePage =  '<p style="font-family: Verdana; font-size: 0.9em; text-align: center; margin-top: 40vh">' + 
+                                'Welcome <strong>' + req.user.displayName + '! </strong> <br /><br /> Please copy this number and paste it back to your chat so your authentication can complete: <br /><br /><strong>' + 
+                              magicCode +
+                            '</strong></p>';
+      }
     }
 
     res.writeHead(200, {
@@ -225,7 +219,6 @@ let strategy = {
   clientID: AZUREAD_APP_ID,
   clientSecret: AZUREAD_APP_PASSWORD,
   validateIssuer: false,
-  //allowHttpForRedirectUrl: true,
   oidcIssuer: undefined,
   identityMetadata: 'https://login.microsoftonline.com/' + realm + '/.well-known/openid-configuration',
   skipUserProfile: true,
@@ -273,52 +266,6 @@ bot.dialog('signin', [
   (session, results) => {
     console.log('signin callback: ' + results);
     session.endDialog();
-  }
-]);
-
-bot.dialog('workPrompt', [
-  (session) => {
-    getUserLatestEmail(session.userData.accessToken,
-        function (requestError, result) {
-          if (result && result.value && result.value.length > 0) {
-            const responseMessage = 'Your latest email is: "' + result.value[0].Subject + '"';
-            session.send(responseMessage);
-            builder.Prompts.confirm(session, "Retrieve the latest email again?");
-          }else{
-            console.log('no user returned');
-            if(requestError){
-              console.error(requestError);
-              // Get a new valid access token with refresh token
-              getAccessTokenWithRefreshToken(session.userData.refreshToken, (err, body, res) => {
-
-                if (err || body.error) {
-                  session.send("Error while getting a new access token. Please try logout and login again. Error: " + err);
-                  session.endDialog();
-                }else{
-                  session.userData.accessToken = body.accessToken;
-                  getUserLatestEmail(session.userData.accessToken,
-                    function (requestError, result) {
-                      if (result && result.value && result.value.length > 0) {
-                        const responseMessage = 'Your latest email is: "' + result.value[0].Subject + '"';
-                        session.send(responseMessage);
-                        builder.Prompts.confirm(session, "Retrieve the latest email again?");
-                      }
-                    }
-                  );
-                }
-              });
-            }
-          }
-        }
-      );
-  },
-  (session, results) => {
-    var prompt = results.response;
-    if (prompt) {
-      session.replaceDialog('workPrompt');
-    } else {
-      session.endDialog();
-    }
   }
 ]);
 
