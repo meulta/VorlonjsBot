@@ -84,9 +84,13 @@ var handleConversation = function(session, results, next){
     switch(resp.toLowerCase()){
         case "create": {
           session.send("I am creating your Vorlon.js instance...");
-          vaaSApiCall("create", session.userData.loginData.alias, (err, url) =>{
-            if(url != null)
-              session.send("Done! You can access it using: " + url);
+          vaaSApiCall("create", session.userData.loginData.alias, (err, url, created) =>{
+            if(url != null){
+              if(created)
+                session.send("Done! You can access it using: " + url);
+              else
+                session.send("You alread have one here: " + url);
+            }
             else
               session.send("I did not manage to create your Vorlon.js instance. Try again or contact vorlonjs@microsoft.com");
           });
@@ -132,11 +136,16 @@ var vaaSApiCall = function(command, instanceName, done){
   };
 
   request(options, function (err, res, body) {
-      if (err) return done(err, null);
-      if (parseInt(res.statusCode / 100, 10) !== 2) {
-          return done(null, rootUrl + "/" + instanceName);
+      if (err) { 
+        done(err, null);
       }
-      done(null, null);
+      else if (res.statusCode === 201 || res.statusCode === 200) {
+        done(null, rootUrl + "/" + instanceName, true);
+      }
+      else if(res.statusCode === 400) {
+        done(null, rootUrl + "/" + instanceName, false);
+      }
+      else done(null, null, null);
   }); 
 }
 
